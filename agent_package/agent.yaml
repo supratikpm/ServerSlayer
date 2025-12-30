@@ -1,6 +1,6 @@
 name: ServerSlayer
 description: The ultimate development server killer. Safely detects and kills stray local servers.
-version: 1.0.0
+version: 1.1.0
 permissions:
   - active_terminal_access
   - file_system_read

@@ -11,7 +11,7 @@ KNOWLEDGE_BASE = {
     "protected_ports": [3306, 5432, 27017, 6379, 1433, 22],
     "protected_processes": [
         "antigravity", "gemini", "cursor", "vscode", "code", "jetbrains",
-        "docker", "postgres", "mysqld", "mongod", "redis-server", "sqlservr", "ngrok", "ssh"
+        "docker", "postgres", "mysqld", "mongod", "redis-server", "sqlservr", "ngrok", "ssh", "git"
     ],
     "frameworks": {
         "node": {"default_ports": [3000, 3001, 8000, 8080], "processes": ["node", "npm", "yarn", "bun"]},
@@ -125,6 +125,104 @@ def get_process_info(pid: int) -> Dict[str, Any]:
 
     return info
 
+    return info
+
+def get_process_path(pid: int) -> str:
+    """
+    Attempts to get the CWD of the process.
+    """
+    # 1. Try psutil if available (Cross-platform, handles Windows CWD)
+    try:
+        import psutil
+        proc = psutil.Process(pid)
+        return proc.cwd()
+    except (ImportError, Exception):
+        pass
+
+    path = ""
+    try:
+        if SYSTEM_OS == "Windows":
+            # Fallback 1: Check command line for current project path presence (Heuristic)
+            # We can't easily get CWD via wmic without 3rd party tools
+            # But sometimes ExecutablePath is what we want if it is a built exe?
+            pass
+        else:
+            # Try pwdx first (Linux)
+            pwdx_out = run_command(["pwdx", str(pid)])
+            if pwdx_out and ":" in pwdx_out:
+                # 1234: /path/to/cwd
+                path = pwdx_out.split(":", 1)[1].strip()
+            
+            # If failed, try lsof for cwd (macOS/Linux)
+            if not path:
+                # lsof -p <pid> -d cwd -F n
+                lsof_out = run_command(["lsof", "-p", str(pid), "-d", "cwd", "-F", "n"])
+                if lsof_out:
+                    for line in lsof_out.splitlines():
+                        if line.startswith("n"):
+                            path = line[1:].strip()
+                            break
+    except Exception:
+        pass
+        
+    return path
+
+def get_established_connections() -> Dict[int, int]:
+    """
+    Returns a dict mapping Port -> Count of ESTABLISHED connections.
+    """
+    counts = {}
+    
+    # 1. Try psutil (Fast, Accurate)
+    try:
+        import psutil
+        # kind='tcp' includes established
+        conns = psutil.net_connections(kind='inet')
+        for c in conns:
+            if c.status == psutil.CONN_ESTABLISHED:
+                # Local address port
+                if c.laddr:
+                    port = c.laddr.port
+                    counts[port] = counts.get(port, 0) + 1
+        return counts
+    except (ImportError, Exception):
+        pass
+    
+    # 2. Fallback
+    if SYSTEM_OS == "Windows":
+        # netstat -ano | findstr ESTABLISHED
+        output = run_command(["netstat", "-ano"])
+        for line in output.splitlines():
+            if "ESTABLISHED" in line:
+                parts = line.split()
+                if len(parts) >= 4:
+                    local_addr = parts[1]
+                    if ":" in local_addr:
+                        port_str = local_addr.split(":")[-1]
+                        if port_str.isdigit():
+                            port = int(port_str)
+                            counts[port] = counts.get(port, 0) + 1
+    else:
+        # lsof -iTCP -sTCP:ESTABLISHED -n -P
+        output = run_command(["lsof", "-iTCP", "-sTCP:ESTABLISHED", "-n", "-P"])
+        # Same parsing as listening, but counting
+        for line in output.splitlines()[1:]:
+            parts = line.split()
+            if len(parts) >= 9:
+                name_field = parts[8] # *:3000->*:54321
+                if "->" in name_field:
+                    # connection, usually 'Local->Remote' or 'Remote->Local' (depends on lsof ver)
+                    # We want the LOCAL port.
+                    # lsof -n -P output: 192.168.1.5:3000->1.2.3.4:443
+                    base = name_field.split("->")[0]
+                    if ":" in base:
+                        port_str = base.split(":")[-1]
+                        if port_str.isdigit():
+                            port = int(port_str)
+                            counts[port] = counts.get(port, 0) + 1
+
+    return counts
+
 def is_protected(process_info: Dict[str, Any], port: int) -> tuple[bool, str]:
     """
     Checks if a process is protected.
@@ -187,8 +285,12 @@ def server_slayer_tool(action: str, scope: str = "project", idle_only: bool = Fa
     
     # 1. Discovery
     listening = get_listening_ports()
-    targets = []
+    # Cache established connections once if idle check is needed or for reporting
+    conn_counts = get_established_connections() 
     
+    current_cwd = os.getcwd().lower()
+    
+    targets = []
     results = [] # Detailed report
     
     for l in listening:
@@ -199,62 +301,105 @@ def server_slayer_tool(action: str, scope: str = "project", idle_only: bool = Fa
         protected, reason = is_protected(info, port)
         classification = classify_server(info, port)
         
-        # Scope filtering (simplified for this tool script)
-        # In a real agent, we'd check "project" by comparing CWD of process to workspace
-        # For now, we rely on heuristics or assume all dev ports are relevant if scoped
+        # Extended Checks
+        path = ""
+        scope_status = "Unknown"
+        
+        # only check path if we care about scope or just want to report it
+        # It's expensive, so maybe strictly do it?
+        # For this tool, we'll do it to be robust
+        if not protected:
+             path = get_process_path(pid)
+             if path:
+                 path_lower = path.lower()
+                 if path_lower.startswith(current_cwd):
+                     scope_status = "Project"
+                 elif "system32" in path_lower or "/usr/bin" in path_lower or "/sbin" in path_lower: # Heuristic
+                     scope_status = "System"
+                 else:
+                     scope_status = "External"
+        
+        conns = conn_counts.get(port, 0)
         
         entry = {
             "port": port,
             "pid": pid,
             "name": info["name"],
             "cmd": info["cmdline"],
+            "path": path,
             "type": classification,
             "protected": protected,
             "reason": reason,
-            "status": "Active" # TODO: Implement idle check
+            "scope": scope_status,
+            "conns": conns
         }
         
         results.append(entry)
         
+        
         # Determine if target
-        is_target = False
+        is_candidate = False
+        
+        # 1. Selection Strategy
         if specific_port:
-            if port == specific_port:
-                is_target = True
+             if port == specific_port:
+                 is_candidate = True
         elif action == "kill":
-            # Filter logic
             if not protected:
-                # If project scope, we ideally check paths, but here we'll assume non-system/unknown is valid
-                if classification != "Unknown":
-                    is_target = True
-                
-        if is_target:
+                 # Scope Filter (General Kill)
+                 if scope == "project":
+                     if scope_status == "Project":
+                         is_candidate = True
+                 else:
+                     # System/Chat/General scope matches everything not protected
+                     if classification != "Unknown" or scope_status == "Project":
+                         is_candidate = True
+        
+        # 2. Apply Filters to Candidate
+        if is_candidate:
+            # Protected Filter (Safety First)
+            # If specific port is used, do we override protection? 
+            # Let's assume protection is absolute unless specific force logic (which we don't have separate from global force)
+            if protected:
+                is_candidate = False
+            
+            # Idle Filter
+            if idle_only:
+                if conns > 0:
+                    is_candidate = False
+        
+        if is_candidate:
              targets.append(entry)
 
     # 2. Execution
     if action == "list" or action == "detect":
         # Format output as a nice markdown table
-        output = "| Port | PID | Type | Protected | Reason | Process |\n"
-        output += "|------|-----|------|-----------|--------|---------|\n"
+        output = "| Port | PID | Type | Protected | Scope | Conns | Process |\n"
+        output += "|------|-----|------|-----------|-------|-------|---------|\n"
         for r in results:
             prot_str = "YES" if r["protected"] else "No"
             # Truncate cmd
-            cmd_short = (r["cmd"][:40] + '..') if len(r["cmd"]) > 40 else r["cmd"]
-            output += f"| {r['port']} | {r['pid']} | {r['type']} | {prot_str} | {r['reason']} | {cmd_short} |\n"
+            cmd_short = (r["cmd"][:30] + '..') if len(r["cmd"]) > 30 else r["cmd"]
+            output += f"| {r['port']} | {r['pid']} | {r['type']} | {prot_str} | {r['scope']} | {r['conns']} | {cmd_short} |\n"
         return output
         
     elif action == "kill":
         report = []
         killed_count = 0
+        
+        if not targets:
+            return "No matching servers found to kill."
+
         for t in targets:
             if t["protected"]:
+                # Should have been filtered, but double check
                 report.append(f"SKIPPED {t['port']} (Protected: {t['reason']})")
                 continue
             
             # Perform Kill
             success = kill_process(t["pid"], force)
             if success:
-                 report.append(f"⚔️ KILLED {t['port']} (PID {t['pid']})")
+                 report.append(f"⚔️ KILLED {t['port']} (PID {t['pid']}, {t['scope']}, {t['conns']} conns)")
                  killed_count += 1
             else:
                  report.append(f"❌ FAILED {t['port']} (PID {t['pid']})")
