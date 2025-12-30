@@ -22,7 +22,10 @@
     <img src="./assets/demo-thumbnail.png" alt="ServerSlayer Demo" width="100%">
   </a>
 </p>
-<p align="center"><em>👆 Click to watch the demo video</em></p>
+<p align="center">
+  <em>👆 Click to watch the demo video</em><br>
+  <strong>🎥 <a href="https://youtu.be/Fetdo7CfPIs">https://youtu.be/Fetdo7CfPIs</a></strong>
+</p>
 
 ---
 
