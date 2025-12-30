@@ -245,6 +245,7 @@ def server_slayer_tool(action: str, scope: str = "project", idle_only: bool = Fa
         
     elif action == "kill":
         report = []
+        killed_count = 0
         for t in targets:
             if t["protected"]:
                 report.append(f"SKIPPED {t['port']} (Protected: {t['reason']})")
@@ -253,9 +254,19 @@ def server_slayer_tool(action: str, scope: str = "project", idle_only: bool = Fa
             # Perform Kill
             success = kill_process(t["pid"], force)
             if success:
-                 report.append(f"KILLED {t['port']} (PID {t['pid']})")
+                 report.append(f"⚔️ KILLED {t['port']} (PID {t['pid']})")
+                 killed_count += 1
             else:
-                 report.append(f"FAILED {t['port']} (PID {t['pid']})")
+                 report.append(f"❌ FAILED {t['port']} (PID {t['pid']})")
+        
+        # Add success message with star prompt
+        if killed_count > 0:
+            report.append("")
+            report.append("=" * 50)
+            report.append("⚔️ Stray servers slain! Ready to code! 🚀")
+            report.append("")
+            report.append("⭐ Star if this saved you: https://github.com/supratikpm/ServerSlayer")
+            report.append("=" * 50)
         
         return "\n".join(report)
 
