@@ -3,15 +3,26 @@
 
 <p align="center">
   <img src="https://img.shields.io/github/stars/supratikpm/ServerSlayer?style=for-the-badge&color=gold" alt="Stars">
-  <img src="https://img.shields.io/badge/Works%20With-Antigravity%20%7C%20Cursor%20%7C%20Continue.dev-blueviolet?style=for-the-badge" alt="IDE Support">
+  <img src="https://img.shields.io/badge/Works%20With-Cursor%20%7C%20Antigravity%20%7C%20Continue.dev%20%7C%20VS%20Code-blueviolet?style=for-the-badge" alt="IDE Support">
   <img src="https://img.shields.io/badge/Safe-Never%20Kills%20DB%20%2F%20ngrok-green?style=for-the-badge" alt="Safe">
   <img src="https://img.shields.io/badge/Cross%20Platform-Windows%20%7C%20macOS%20%7C%20Linux-blue?style=for-the-badge" alt="Cross Platform">
 </p>
 
 <p align="center">
-  <strong>Portable AI agent to safely terminate stray localhost processes and free blocked ports.</strong><br>
+  <strong>Open-source AI agent to safely terminate stray localhost processes and free blocked ports.</strong><br>
   Works with <b>Node.js, Python/Django/Flask, Java/Spring Boot, Ruby/Rails, Go, PHP</b> and more.
 </p>
+
+---
+
+## 🎬 Demo
+
+<p align="center">
+  <a href="https://youtu.be/Fetdo7CfPIs">
+    <img src="./assets/demo-thumbnail.png" alt="ServerSlayer Demo" width="100%">
+  </a>
+</p>
+<p align="center"><em>👆 Click to watch the demo video</em></p>
 
 ---
 
@@ -45,19 +56,23 @@ That's it. ServerSlayer finds and safely kills stray development servers, idle l
 | **Idle Server Detection** | Identifies unresponsive/zombie dev servers |
 | **Cross-Platform** | Works on Windows, macOS, and Linux |
 | **Multi-Framework** | Node.js, Python, Java, Ruby, Go, PHP support |
-| **AI-Powered** | Slash commands work in Antigravity, Cursor, Continue.dev |
+| **Any Agentic IDE** | Cursor, Antigravity, Continue.dev, Windsurf, VS Code + AI |
 
 ---
 
 ## 🚀 Quick Install
 
-### For Antigravity / Cursor / Continue.dev / Windsurf
+### Step 1: Clone
 
-Copy the `.agent` folder to your project:
+```bash
+git clone https://github.com/supratikpm/ServerSlayer.git
+```
+
+### Step 2: Copy to Your Project
 
 **Windows (PowerShell):**
 ```powershell
-Copy-Item -Path "C:\Projects\ServerSlayer\.agent" -Destination ".\" -Recurse -Force
+Copy-Item -Path "path\to\ServerSlayer\.agent" -Destination ".\" -Recurse -Force
 ```
 
 **macOS / Linux:**
@@ -65,7 +80,9 @@ Copy-Item -Path "C:\Projects\ServerSlayer\.agent" -Destination ".\" -Recurse -Fo
 cp -r /path/to/ServerSlayer/.agent ./
 ```
 
-Done! Slash commands are now active.
+### Step 3: Use It!
+
+Type `/listports` or `/killservers` in your AI chat. Done!
 
 ---
 
@@ -80,6 +97,19 @@ Done! Slash commands are now active.
 
 ---
 
+## 🖥️ Works in Any Agentic IDE
+
+ServerSlayer is **IDE-agnostic**. Tested and works with:
+
+| IDE | Setup |
+| :--- | :--- |
+| **Cursor** | Add `.cursorrules` (see below) |
+| **Antigravity** | Just copy `.agent/` folder |
+| **Continue.dev** | Copy `.agent/` folder |
+| **Windsurf** | Copy `.agent/` folder |
+| **VS Code + AI** | Use system prompt (see below) |
+| **Any AI Assistant** | Use the Python script directly |
+
 <details>
 <summary><b>📋 Cursor IDE Setup (.cursorrules)</b></summary>
 
@@ -87,58 +117,97 @@ Create `.cursorrules` in your project root:
 
 ```
 You have access to ServerSlayer workflows in .agent/workflows/.
-When the user mentions ports, servers, or "port in use" errors, suggest using:
+When the user mentions ports, servers, or "port in use" errors, use:
 - /listports - to see what's running
 - /killservers - to safely kill dev servers
 - /killport <port> - to kill a specific port
 - /nukeports - for force kill
 
-Always run the python script at .agent/tools/server_slayer_tools.py with appropriate arguments.
+Run: python .agent/tools/server_slayer_tools.py [list|kill] [options]
 ```
 
 </details>
 
 <details>
-<summary><b>🤖 Claude / Any AI Assistant Setup</b></summary>
+<summary><b>🤖 Claude / ChatGPT / Any AI Setup</b></summary>
 
-Add this to your system prompt:
+Add to your system prompt:
 
 ```
-You are equipped with ServerSlayer, a port management tool.
+You have ServerSlayer for port management.
 
-To list ports:
+Commands:
 python .agent/tools/server_slayer_tools.py list
-
-To kill servers (graceful):
 python .agent/tools/server_slayer_tools.py kill --scope=project
-
-To force kill:
-python .agent/tools/server_slayer_tools.py kill --force --scope=project
-
-To kill specific port:
+python .agent/tools/server_slayer_tools.py kill --force
 python .agent/tools/server_slayer_tools.py kill --port 3000
 
-SAFETY: Never kill ports 3306, 5432, 27017, 6379 (databases) or processes containing "ngrok", "docker", "vscode", "cursor".
+SAFETY: Never kill ports 3306, 5432, 27017, 6379 (databases).
 ```
 
 </details>
 
 ---
 
-## �️ Safety First: Protected Services
+## 🛡️ Safety First: Protected Services
 
 ServerSlayer **automatically protects** critical services:
 
 | Category | Protected |
 | :--- | :--- |
-| **Databases** | MySQL (3306), PostgreSQL (5432), MongoDB (27017), Redis (6379), MSSQL (1433) |
+| **Databases** | MySQL (3306), PostgreSQL (5432), MongoDB (27017), Redis (6379) |
 | **Tunnels** | ngrok, SSH (22) |
-| **IDE Processes** | Antigravity, VSCode, Cursor, JetBrains |
+| **IDE Processes** | Cursor, VSCode, Antigravity, JetBrains |
 | **Containers** | Docker daemon |
 
 ---
 
-## � Supported Frameworks
+## 🔧 How It Works (Code Visibility)
+
+The core logic is in `server_slayer_tools.py`:
+
+```python
+# Detection: Find all listening ports
+def get_listening_ports():
+    if SYSTEM_OS == "Windows":
+        output = run_command(["netstat", "-ano"])
+        # Parse LISTENING ports...
+    else:  # macOS / Linux
+        output = run_command(["lsof", "-iTCP", "-sTCP:LISTEN", "-n", "-P"])
+        # Parse listening ports...
+
+# Safety: Never kill protected services
+PROTECTED_PORTS = [3306, 5432, 27017, 6379, 1433, 22]
+PROTECTED_PROCESSES = ["docker", "postgres", "mysql", "ngrok", "vscode", "cursor"]
+
+# Kill: Graceful first, force if needed
+def kill_process(pid, force=False):
+    if SYSTEM_OS == "Windows":
+        subprocess.run(["taskkill", "/PID", str(pid), "/F" if force else ""])
+    else:
+        subprocess.run(["kill", "-9" if force else "", str(pid)])
+```
+
+**Full source:** [server_slayer_tools.py](https://github.com/supratikpm/ServerSlayer/blob/main/.agent/tools/server_slayer_tools.py)
+
+---
+
+## 📁 Project Structure
+
+```
+.agent/                          # 👈 Copy this folder to any project
+├── tools/
+│   └── server_slayer_tools.py   # Core detection & kill logic
+└── workflows/
+    ├── listports.md             # /listports command
+    ├── killservers.md           # /killservers command
+    ├── killport.md              # /killport command
+    └── nukeports.md             # /nukeports command
+```
+
+---
+
+## 🔧 Supported Frameworks
 
 | Framework | Default Ports |
 | :--- | :--- |
@@ -151,21 +220,6 @@ ServerSlayer **automatically protects** critical services:
 
 ---
 
-## 📁 Project Structure
-
-```
-.agent/                          # 👈 Copy this folder to any project
-├── tools/
-│   └── server_slayer_tools.py   # Core logic (cross-platform)
-└── workflows/
-    ├── listports.md             # /listports
-    ├── killservers.md           # /killservers
-    ├── killport.md              # /killport
-    └── nukeports.md             # /nukeports
-```
-
----
-
 ## 🤝 Contributing
 
 PRs welcome! See [CONTRIBUTING.md](CONTRIBUTING.md)
@@ -173,7 +227,7 @@ PRs welcome! See [CONTRIBUTING.md](CONTRIBUTING.md)
 **Help needed:**
 - 🍎 macOS/Linux testing
 - 🧩 More framework detection
-- 🎬 Record a demo GIF
+- 🎬 Better demo GIF
 
 ---
 
@@ -191,7 +245,7 @@ If ServerSlayer saved you from "port already in use" hell:
 
 ## 🔍 Keywords
 
-`kill stray servers` • `port already in use` • `terminate localhost processes` • `safe port killer` • `idle server killer` • `free blocked ports` • `dev server cleanup` • `antigravity ide` • `cursor rules` • `ai agent`
+`kill stray servers` • `port already in use` • `terminate localhost processes` • `safe port killer` • `idle server killer` • `free blocked ports` • `dev server cleanup` • `cursor rules` • `ai agent` • `antigravity ide`
 
 ---
 
@@ -200,5 +254,5 @@ If ServerSlayer saved you from "port already in use" hell:
 </p>
 
 <p align="center">
-  Made by <a href="https://github.com/supratikpm">@supratikpm</a>
+  Made with ⚔️ by <a href="https://github.com/supratikpm">@supratikpm</a>
 </p>
